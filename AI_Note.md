@@ -1,8 +1,8 @@
 **AI Note – BugXtract**
 
-Introduction
+**Introduction**
 
-BugXtract is an AI-powered bug triage system developed to simplify the process of analyzing and prioritizing software bug reports. In software projects, manually reviewing large numbers of bug reports can be time-consuming and inconsistent. This project addresses that challenge by using Artificial Intelligence to automate key bug triage tasks.
+_BugXtract is an AI-powered bug triage system developed to simplify the process of analyzing and prioritizing software bug reports. In software projects, manually reviewing large numbers of bug reports can be time-consuming and inconsistent. This project addresses that challenge by using Artificial Intelligence to automate key bug triage tasks._
 
 
 
@@ -10,13 +10,13 @@ The system accepts bug reports through a CSV file and provides intelligent insig
 
 
 
-AI Technologies Used
+**AI Technologies Used**
 
 The project uses the qwen2.5:3b Large Language Model running locally through Ollama. This allows bug reports to be analyzed without relying on external cloud services.
 
 
 
-The AI model is responsible for:
+**The AI model is responsible for:**
 
 
 
@@ -58,7 +58,7 @@ When a CSV file is uploaded, each bug report is processed individually. The titl
 
 
 
-The system automatically determines:
+**The system automatically determines:**
 
 
 
@@ -81,7 +81,6 @@ Suggested Fix
 Confidence Score
 
 
-
 AI Reasoning
 
 
@@ -90,7 +89,7 @@ Duplicate detection is performed by comparing bug descriptions using semantic si
 
 
 
-Benefits of Using AI
+**Benefits of Using AI**
 
 Integrating AI into bug triage provides several advantages:
 
@@ -116,13 +115,13 @@ Supports better decision-making during software maintenance
 
 
 
-Limitations
+**Limitations**
 
 Although AI can provide useful recommendations, its output depends on the quality of the bug descriptions provided. Poorly documented reports may lead to lower confidence predictions. Therefore, AI-generated results should be considered as assistance rather than final decisions.
 
 
 
-Conclusion
+**Conclusion**
 
 BugXtract demonstrates how Artificial Intelligence can be applied to software quality assurance processes. By combining Large Language Models and semantic similarity techniques, the system helps automate bug triage and improves the efficiency of managing software defects.
 

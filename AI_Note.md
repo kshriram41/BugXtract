@@ -1,4 +1,4 @@
-AI Note – BugXtract
+**AI Note – BugXtract**
 
 Introduction
 

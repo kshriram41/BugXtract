@@ -1,64 +1,90 @@
-\# 🎥 BugXtract Demo Video
+🎥 BugXtract Demo Video
+
+
+About the Project
+
+
+BugXtract is an AI-powered bug triage system developed to simplify and automate the process of analyzing software bug reports. Instead of manually reviewing each issue, the system uses Artificial Intelligence to understand bug descriptions, identify their severity, detect duplicate reports, and provide useful insights for developers.
 
 
 
-\## Project Overview
+The project combines Large Language Models (LLMs) with semantic similarity techniques to make bug management faster and more efficient.
 
 
 
-\*\*BugXtract\*\* is an AI-powered Bug Report Triage Agent that automates bug analysis and prioritization using Large Language Models and semantic similarity techniques.
+Features Demonstrated in the Video
+
+The demo video showcases the complete workflow of the BugXtract application, including:
 
 
 
-\### Key Features Demonstrated
+Uploading bug reports through a CSV file
 
 
 
-\- CSV Bug Report Upload
-
-\- AI-Powered Bug Analysis using Ollama (qwen2.5:3b)
-
-\- Severity Classification (Low, Medium, High, Critical)
-
-\- Area/Component Classification
-
-\- Duplicate Bug Detection
-
-\- Similarity Score Calculation
-
-\- Root Cause Prediction
-
-\- Suggested Fix Generation
-
-\- Confidence Score Estimation
-
-\- AI Severity Reasoning
-
-\- Health Score Calculation
-
-\- CSV Export Functionality
+AI-based analysis using Ollama and the qwen2.5:3b model
 
 
 
-\## Demo Video
+Automatic severity classification (Low, Medium, High, Critical)
 
 
 
-🔗 \*\*Watch the Demo Video Here:\*\*
+Identification of the affected module or component
 
 
 
-https://drive.google.com/drive/folders/1OuaoZeJWWyuSGVcSOQPO-KL5TLTmT5mJ?usp=sharing
+Duplicate bug detection using semantic similarity
 
 
 
-\---
+Similarity score generation
 
 
 
-\## GitHub Repository
+Root cause prediction
 
 
 
-https://github.com/kshriram41/BugXtract
+Suggested fix recommendations
+
+
+
+Confidence score estimation
+
+
+
+AI-generated reasoning for severity assignment
+
+
+
+Health score calculation for bug reports
+
+
+
+Exporting analyzed results as a CSV file
+
+
+
+Demo Video Link
+
+The complete demonstration video can be accessed using the link below:
+
+
+
+🔗 https://drive.google.com/drive/folders/1OuaoZeJWWyuSGVcSOQPO-KL5TLTmT5mJ?usp=sharing
+
+
+
+GitHub Repository
+
+Source code, documentation, sample datasets, and project resources are available at:
+
+
+
+🔗 https://github.com/kshriram41/BugXtract
+
+
+
+Thank you for reviewing the BugXtract project.
 

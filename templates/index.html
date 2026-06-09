@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BugXtract - AI Powered Bug Report Triage Agent</title>
+    <!-- Modern Dark Theme Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header Section -->
+        <header>
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+                        <path d="M12 6a6 6 0 0 0-6 6c0 1.66.67 3.16 1.76 4.24l.05.05L12 21l4.19-4.71.05-.05A6 6 0 0 0 12 6z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>BugXtract</h1>
+                </div>
+            </div>
+            <div class="header-meta">
+                <span class="badge-version">v3.0.0-PRO</span>
+                <span class="badge-version" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                        <polyline points="2 17 12 22 22 17"/>
+                        <polyline points="2 12 12 17 22 12"/>
+                    </svg>
+                    100% Ollama Powered
+                </span>
+                <span class="badge-version" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); color: #ffffff; border: none; font-weight: 700;">
+                    Powered by qwen2.5:3b
+                </span>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>AI Engine Active</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Section (Dashboard counters) -->
+        <section class="stats-grid">
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <span class="stat-label">Total Bugs</span>
+                    <span class="stat-value" id="stat-total">0</span>
+                </div>
+                <div class="stat-icon">📊</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <span class="stat-label">Duplicate Bugs</span>
+                    <span class="stat-value" id="stat-duplicates">0</span>
+                </div>
+                <div class="stat-icon">👥</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <span class="stat-label">High / Critical Bugs</span>
+                    <span class="stat-value" id="stat-high">0</span>
+                </div>
+                <div class="stat-icon">⚠️</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <span class="stat-label">Average Health Score</span>
+                    <span class="stat-value" id="stat-health">100.0%</span>
+                </div>
+                <div class="stat-icon">❤️</div>
+            </div>
+            <div class="glass-card stat-card">
+                <div class="stat-info">
+                    <span class="stat-label">Total Analysis Time</span>
+                    <span class="stat-value" id="stat-time">0.0s</span>
+                    <span class="stat-label" id="stat-last-run" style="font-size: 0.65rem; color: var(--color-text-muted); margin-top: 4px;">Last Run: N/A</span>
+                </div>
+                <div class="stat-icon">⏱️</div>
+            </div>
+        </section>
+
+        <!-- Main Workspace (Upload zone + Action panel) -->
+        <section class="action-grid">
+            <!-- CSV Upload Zone -->
+            <div class="glass-card upload-zone" id="drop-zone">
+                <input type="file" id="csv-file-input" class="file-input" accept=".csv">
+                <div class="upload-icon" id="upload-icon-container">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="url(#indigoPurpleGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                        <defs>
+                            <linearGradient id="indigoPurpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#6366f1" />
+                                <stop offset="100%" stop-color="#a855f7" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                </div>
+                <h3 class="upload-title">Drag &amp; drop bug report CSV</h3>
+                <p class="upload-desc">Required headers: <code>Bug ID</code>, <code>Title</code>, <code>Description</code>. (Case and space insensitive).</p>
+                
+                <!-- File Selected State Preview -->
+                <div class="file-preview" id="file-preview-el">
+                    <div class="file-icon" style="font-size: 1.5rem;">📄</div>
+                    <div class="file-details">
+                        <div class="file-name" id="file-name-display">sample_bugs.csv</div>
+                        <div class="file-meta" id="file-meta-display">-- KB • -- rows detected</div>
+                    </div>
+                    <button type="button" class="btn-remove-file" id="btn-remove" title="Remove file">×</button>
+                </div>
+            </div>
+
+            <!-- Controller Panel -->
+            <div class="glass-card control-card">
+                <div class="control-header">
+                    <span class="control-title">AI Triage Execution Panel</span>
+                    <p class="control-description">
+                        Starts the AI pipeline. Uses local <code>qwen2.5:3b</code> model for severity, area classification, missing info audits, and suggested fixes, and <code>all-MiniLM-L6-v2</code> for duplicate detection.
+                    </p>
+                </div>
+                <div class="control-actions" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button type="button" class="btn-primary" id="btn-analyze" disabled>
+                        <span>Analyze Bugs</span>
+                        <div class="spinner" id="analyze-spinner"></div>
+                    </button>
+                    <p class="upload-desc" style="font-size: 0.75rem; text-align: center;">
+                        Upload <code>data/sample_bugs.csv</code> to run the triage test.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Progress Section -->
+        <section class="glass-card progress-card" id="progress-container" style="display: none; padding: 1.5rem; flex-direction: column; gap: 0.75rem; margin-bottom: 0px; border-color: rgba(99, 102, 241, 0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem;">
+                <span style="font-weight: 600; color: var(--color-text-primary);" id="progress-status">Analyzing Bug 1 of 10</span>
+                <span style="font-weight: 700; color: var(--primary);" id="progress-percent">10%</span>
+            </div>
+            <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.06); border-radius: var(--radius-full); overflow: hidden; border: 1px solid rgba(255,255,255,0.04);">
+                <div id="progress-bar" style="width: 10%; height: 100%; background: var(--primary-gradient); transition: width 0.3s ease;"></div>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--color-text-secondary); text-align: left; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="status-dot" style="margin-left: 2px; background-color: var(--primary); box-shadow: 0 0 8px var(--primary);"></div>
+                <span>Current: <strong id="progress-current-title" style="color: var(--color-text-primary);">Database timeout error on login</strong></span>
+            </div>
+        </section>
+
+        <!-- Triage Results Section -->
+        <section class="glass-card results-card">
+            <div class="results-header">
+                <h2 class="table-title">
+                    Triage Assessment Results 
+                    <span class="results-count-badge" id="results-count">0 bugs</span>
+                </h2>
+                <!-- Search & Export Actions -->
+                <div style="display: flex; gap: 1rem; align-items: center; width: 100%; max-width: 500px; justify-content: flex-end;">
+                    <div class="search-container">
+                        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" class="search-input" id="search-input" placeholder="Filter by ID, Title, Area..." disabled>
+                    </div>
+                    <a href="/export" class="btn-export" id="btn-export" title="Export current results to CSV">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; display: inline-block; vertical-align: middle;">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        </svg>
+                        <span>Export CSV</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Results Empty State -->
+            <div class="empty-state" id="empty-state-el">
+                <div class="empty-state-icon">📥</div>
+                <h3 class="empty-state-title">Empty Results Table</h3>
+                <p class="empty-state-desc">Upload a bug list CSV file and click "Analyze Bugs" above to execute triage classifications.</p>
+            </div>
+
+            <!-- Skeleton Loader Simulation -->
+            <div class="skeleton-container" id="skeleton-loader">
+                <div class="skeleton-row"></div>
+                <div class="skeleton-row" style="animation-delay: 0.15s;"></div>
+                <div class="skeleton-row" style="animation-delay: 0.3s;"></div>
+                <div class="skeleton-row" style="animation-delay: 0.45s;"></div>
+                <div class="skeleton-row" style="animation-delay: 0.6s;"></div>
+            </div>
+
+            <!-- Results Data Table -->
+            <div class="table-wrapper" id="table-wrapper-el">
+                <table id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Bug ID</th>
+                            <th>Title</th>
+                            <th>Severity</th>
+                            <th>Area</th>
+                            <th>Duplicate Status</th>
+                            <th>Health</th>
+                            <th>Status</th>
+                            <th>Missing Info</th>
+                            <th style="width: 50px; text-align: center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Dynamic Rows Injected Here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast Notification alerts -->
+    <div class="toast" id="toast-el">
+        <span id="toast-icon"></span>
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- UI Logic Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('csv-file-input');
+            const filePreview = document.getElementById('file-preview-el');
+            const fileNameDisplay = document.getElementById('file-name-display');
+            const fileMetaDisplay = document.getElementById('file-meta-display');
+            const btnRemove = document.getElementById('btn-remove');
+            const btnAnalyze = document.getElementById('btn-analyze');
+            const btnExport = document.getElementById('btn-export');
+            const analyzeSpinner = document.getElementById('analyze-spinner');
+            
+            const emptyState = document.getElementById('empty-state-el');
+            const skeletonLoader = document.getElementById('skeleton-loader');
+            const tableWrapper = document.getElementById('table-wrapper-el');
+            const tableBody = document.getElementById('table-body');
+            const searchInput = document.getElementById('search-input');
+            const resultsCount = document.getElementById('results-count');
+            
+            // Dashboard counters
+            const statTotal = document.getElementById('stat-total');
+            const statDuplicates = document.getElementById('stat-duplicates');
+            const statHigh = document.getElementById('stat-high');
+            const statHealth = document.getElementById('stat-health');
+            const statTime = document.getElementById('stat-time');
+            const statLastRun = document.getElementById('stat-last-run');
+
+            // Live progress elements
+            const progressContainer = document.getElementById('progress-container');
+            const progressStatus = document.getElementById('progress-status');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBar = document.getElementById('progress-bar');
+            const progressCurrentTitle = document.getElementById('progress-current-title');
+            
+            let loadedBugs = [];
+
+            // Disable export initially
+            btnExport.classList.add('disabled');
+
+            // Page load: Restore previously triaged bugs
+            fetch('/triage_data')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.results.length > 0) {
+                        loadedBugs = data.results;
+                        updateDashboardStats(data.stats);
+                        renderResultsTable(data.results);
+                        
+                        emptyState.style.display = 'none';
+                        tableWrapper.style.display = 'block';
+                        searchInput.removeAttribute('disabled');
+                        btnExport.classList.remove('disabled');
+                        resultsCount.textContent = `${data.results.length} bugs`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to restore page state:", err);
+                });
+
+            // Event Listeners for Drag and Drop
+            dropZone.addEventListener('click', (e) => {
+                if (e.target !== btnRemove && !btnRemove.contains(e.target)) {
+                    fileInput.click();
+                }
+            });
+
+            fileInput.addEventListener('change', handleFileSelect);
+
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    fileInput.files = e.dataTransfer.files;
+                    handleFileSelect();
+                }
+            });
+
+            btnRemove.addEventListener('click', (e) => {
+                e.stopPropagation();
+                resetFileSelection();
+            });
+
+            btnAnalyze.addEventListener('click', performAnalysis);
+
+            // Live Table Filter
+            searchInput.addEventListener('keyup', () => {
+                const query = searchInput.value.toLowerCase().trim();
+                const rows = tableBody.querySelectorAll('tr:not(.explanation-row)');
+                
+                rows.forEach(row => {
+                    const rowId = row.dataset.id;
+                    const text = row.innerText.toLowerCase();
+                    const expRow = document.getElementById(`exp-${rowId}`);
+                    
+                    if (text.includes(query)) {
+                        row.style.display = '';
+                        if (expRow && expRow.dataset.open === 'true') {
+                            expRow.style.display = '';
+                        }
+                    } else {
+                        row.style.display = 'none';
+                        if (expRow) {
+                            expRow.style.display = 'none';
+                        }
+                    }
+                });
+            });
+
+            // Handle file selection
+            function handleFileSelect() {
+                const file = fileInput.files[0];
+                if (!file) return;
+
+                if (!file.name.endsWith('.csv')) {
+                    showToast('Invalid file format. Please upload a CSV file.', 'error');
+                    resetFileSelection();
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`Successfully uploaded ${data.filename}`, 'success');
+                        
+                        fileNameDisplay.textContent = data.filename;
+                        const fileSizeKB = (file.size / 1024).toFixed(1);
+                        fileMetaDisplay.textContent = `${fileSizeKB} KB • ${data.rows} rows detected`;
+                        
+                        filePreview.style.display = 'flex';
+                        btnAnalyze.removeAttribute('disabled');
+                    } else {
+                        showToast(data.error || 'Failed to upload CSV', 'error');
+                        resetFileSelection();
+                    }
+                })
+                .catch(err => {
+                    showToast('Network error during file upload', 'error');
+                    resetFileSelection();
+                });
+            }
+
+            // Reset File State
+            function resetFileSelection() {
+                fileInput.value = '';
+                filePreview.style.display = 'none';
+                btnAnalyze.setAttribute('disabled', 'true');
+            }
+
+            // Perform AI Triage Analysis (SSE Stream Reader)
+            function performAnalysis() {
+                btnAnalyze.setAttribute('disabled', 'true');
+                analyzeSpinner.style.display = 'inline-block';
+                
+                emptyState.style.display = 'none';
+                tableWrapper.style.display = 'none';
+                skeletonLoader.style.display = 'none'; // Replaced by live progress + row insertion
+                searchInput.setAttribute('disabled', 'true');
+                searchInput.value = '';
+                btnExport.classList.add('disabled');
+
+                // Reset progress UI and show it
+                progressStatus.textContent = "Initializing pipeline...";
+                progressPercent.textContent = "0%";
+                progressBar.style.width = "0%";
+                progressCurrentTitle.textContent = "Setting up duplicate detection and loading models...";
+                progressContainer.style.display = 'flex';
+                
+                tableBody.innerHTML = '';
+                loadedBugs = [];
+
+                fetch('/analyze', {
+                    method: 'POST'
+                })
+                .then(async (response) => {
+                    if (!response.ok) {
+                        throw new Error(`Server returned status ${response.status}`);
+                    }
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        // save the last line which might be partial
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (trimmed.startsWith("data: ")) {
+                                try {
+                                    const event = JSON.parse(trimmed.slice(6));
+                                    handleStreamEvent(event);
+                                } catch (e) {
+                                    console.error("Failed to parse stream event line", trimmed, e);
+                                }
+                            }
+                        }
+                    }
+                })
+                .catch(err => {
+                    btnAnalyze.removeAttribute('disabled');
+                    analyzeSpinner.style.display = 'none';
+                    progressContainer.style.display = 'none';
+                    if (loadedBugs.length === 0) {
+                        emptyState.style.display = 'flex';
+                    }
+                    showToast('Error executing AI triage analysis pipeline: ' + err.message, 'error');
+                });
+            }
+
+            function handleStreamEvent(event) {
+                if (event.type === 'start') {
+                    resultsCount.textContent = `0 of ${event.total} bugs analyzed`;
+                } else if (event.type === 'progress') {
+                    const percent = Math.round(((event.index - 1) / event.total) * 100);
+                    progressStatus.textContent = `Analyzing ${event.bug_id} of ${event.total}...`;
+                    progressPercent.textContent = `${percent}%`;
+                    progressBar.style.width = `${percent}%`;
+                    progressCurrentTitle.textContent = event.title;
+                } else if (event.type === 'bug_result') {
+                    // Append this bug immediately to the results
+                    loadedBugs.push(event.bug);
+                    // Make sure table wrapper is visible now that we have rows
+                    tableWrapper.style.display = 'block';
+                    
+                    // Append row dynamically
+                    appendSingleBugRow(event.bug);
+                    resultsCount.textContent = `${loadedBugs.length} of ${event.total} bugs analyzed`;
+                    
+                    // Scroll to the bottom of the table wrapper
+                    const wrapper = document.getElementById('table-wrapper-el');
+                    if (wrapper) wrapper.scrollTop = wrapper.scrollHeight;
+                } else if (event.type === 'complete') {
+                    // We are finished!
+                    btnAnalyze.removeAttribute('disabled');
+                    analyzeSpinner.style.display = 'none';
+                    progressContainer.style.display = 'none';
+                    
+                    loadedBugs = event.results;
+                    updateDashboardStats(event.stats);
+                    resultsCount.textContent = `${event.results.length} bugs`;
+                    
+                    // Re-render full table to bind toggles cleanly
+                    renderResultsTable(event.results);
+                    
+                    tableWrapper.style.display = 'block';
+                    searchInput.removeAttribute('disabled');
+                    btnExport.classList.remove('disabled');
+                    
+                    showToast('AI Triage Assessment Completed!', 'success');
+                } else if (event.type === 'error') {
+                    btnAnalyze.removeAttribute('disabled');
+                    analyzeSpinner.style.display = 'none';
+                    progressContainer.style.display = 'none';
+                    if (loadedBugs.length === 0) {
+                        emptyState.style.display = 'flex';
+                    }
+                    showToast('Analysis error: ' + event.message, 'error');
+                }
+            }
+
+            // Update status of a specific bug report
+            window.updateBugStatus = function(selectEl, bugId) {
+                const newStatus = selectEl.value;
+                
+                // Update dropdown class for background colors
+                selectEl.className = 'status-select'; // Reset
+                selectEl.classList.add(`status-select-${newStatus.toLowerCase().replace(' ', '-')}`);
+                
+                fetch('/update_status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: bugId, status: newStatus })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`BUG ${bugId} status updated to ${newStatus}`, 'success');
+                        updateDashboardStats(data.stats);
+                        
+                        // Dynamically update the resolution drawer details block if displayed
+                        const targetBug = data.results.find(b => b.id === bugId);
+                        const resPanel = document.getElementById(`res-panel-${bugId}`);
+                        
+                        if (resPanel && targetBug) {
+                            if (newStatus === 'Fixed') {
+                                resPanel.style.display = 'block';
+                                document.getElementById(`res-date-${bugId}`).textContent = targetBug.date_fixed;
+                                document.getElementById(`res-applied-${bugId}`).textContent = targetBug.suggested_fix_applied;
+                                document.getElementById(`res-summary-${bugId}`).textContent = targetBug.resolution_summary;
+                            } else {
+                                resPanel.style.display = 'none';
+                            }
+                        }
+                    } else {
+                        showToast(data.error || 'Failed to update status', 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('Network error during status update.', 'error');
+                });
+            }
+
+            function updateDashboardStats(stats) {
+                statTotal.textContent = stats.total;
+                statDuplicates.textContent = stats.duplicates;
+                statHigh.textContent = stats.high_priority;
+                statHealth.textContent = stats.avg_health;
+                
+                // New metrics display
+                if (statTime && stats.total_analysis_time) {
+                    statTime.textContent = stats.total_analysis_time;
+                }
+                if (statLastRun && stats.last_analysis_run) {
+                    statLastRun.textContent = `Last Run: ${stats.last_analysis_run}`;
+                }
+            }
+
+            function escapeHtml(text) {
+                if (!text) return "";
+                return text
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            function getBugRowHtml(bug) {
+                // Severity classes
+                const severityClass = `badge-${bug.severity.toLowerCase()}`;
+                
+                // Duplicate status badge
+                let dupHtml = '';
+                if (bug.duplicate_status === 'Original') {
+                    dupHtml = `<span class="badge badge-low" style="background: none; border-color: rgba(16, 185, 129, 0.4); color: #34d399;">Original</span>`;
+                } else {
+                    dupHtml = `<span class="badge badge-high" style="background: rgba(249, 115, 22, 0.15); color: #fb923c; border-color: rgba(249, 115, 22, 0.3); font-weight:700;">${bug.duplicate_status}</span>`;
+                }
+
+                // Health score color
+                let healthClass = 'health-green';
+                if (bug.health_score < 50) {
+                    healthClass = 'health-red';
+                } else if (bug.health_score < 80) {
+                    healthClass = 'health-amber';
+                }
+
+                // Status Dropdown styling class
+                const statusClass = `status-select-${bug.status.toLowerCase().replace(' ', '-')}`;
+
+                // Missing Info tags
+                let missingHtml = '';
+                if (bug.missing_information.length === 0) {
+                    missingHtml = `<span style="color: #34d399; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">✓ Complete</span>`;
+                } else {
+                    missingHtml = bug.missing_information.map(field => {
+                        let label = field;
+                        if (field === 'Steps to Reproduce') label = 'Steps';
+                        if (field === 'Error Message') label = 'Error';
+                        if (field === 'Expected Behavior') label = 'Expected';
+                        return `<span class="badge-missing-field" title="Missing ${field}">${label}</span>`;
+                    }).join(' ');
+                }
+
+                const primaryRow = `
+                    <tr data-id="${bug.id}">
+                        <td style="font-weight: 700; color: var(--primary); font-family: monospace;">${bug.id}</td>
+                        <td style="font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(bug.title)}">${escapeHtml(bug.title)}</td>
+                        <td><span class="badge ${severityClass}">${bug.severity}</span></td>
+                        <td><span style="font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">${escapeHtml(bug.area)}</span></td>
+                        <td>${dupHtml}</td>
+                        <td><span class="health-badge ${healthClass}">${bug.health_score}</span></td>
+                        <td>
+                            <select class="status-select ${statusClass}" onchange="updateBugStatus(this, '${bug.id}')">
+                                <option value="Open" ${bug.status === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="In Progress" ${bug.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="Fixed" ${bug.status === 'Fixed' ? 'selected' : ''}>Fixed</option>
+                            </select>
+                        </td>
+                        <td>
+                            <div style="display:flex; gap:0.25rem; flex-wrap:wrap;">
+                                ${missingHtml}
+                            </div>
+                        </td>
+                        <td style="text-align: center;">
+                            <button type="button" class="btn-toggle-exp" data-id="${bug.id}">View</button>
+                        </td>
+                    </tr>
+                `;
+
+                // Confidence color code: 90-100 = Green (#10b981), 70-89 = Orange (#f97316), Below 70 = Red (#ef4444)
+                let confColor = '#ef4444';
+                if (bug.confidence_score >= 90) {
+                    confColor = '#10b981';
+                } else if (bug.confidence_score >= 70) {
+                    confColor = '#f97316';
+                }
+
+                // Create structured details expansion row
+                const expRow = `
+                    <tr id="exp-${bug.id}" class="explanation-row" style="display: none;" data-open="false">
+                        <td colspan="9">
+                            <div class="clean-detail-container">
+                                <!-- Top Metadata Info Bar -->
+                                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; background: rgba(255, 255, 255, 0.02); padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.04);">
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary);"><strong>Severity:</strong> <span class="badge ${severityClass}" style="vertical-align: middle; margin-left: 0.25rem;">${bug.severity}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Area:</strong> <span style="font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.1rem 0.35rem; border-radius: 4px; vertical-align: middle; margin-left: 0.25rem;">${escapeHtml(bug.area)}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Duplicate Status:</strong> <span style="vertical-align: middle; margin-left: 0.25rem;">${dupHtml}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Confidence:</strong> <span style="font-weight: 700; color: ${confColor}; vertical-align: middle; margin-left: 0.25rem;">${bug.confidence_score}%</span></span>
+                                </div>
+                            
+                                <div class="detail-section-grid" style="margin-bottom: 1rem;">
+                                    <div class="detail-box" style="border-left-color: var(--color-text-secondary);">
+                                        <h4 class="detail-box-title">Full Bug Description</h4>
+                                        <p class="detail-box-desc" style="white-space: pre-wrap;">${escapeHtml(bug.description)}</p>
+                                    </div>
+                                    <div class="detail-box" style="border-left-color: #a855f7;">
+                                        <h4 class="detail-box-title">AI Severity Reasoning</h4>
+                                        <p class="detail-box-desc" style="font-style: italic;">"${escapeHtml(bug.severity_reasoning)}"</p>
+                                    </div>
+                                </div>
+
+                                ${bug.duplicate_candidate ? `
+                                <div class="detail-section-grid" style="margin-bottom: 1rem;">
+                                    <div class="detail-box" style="border-left-color: #fb923c;">
+                                        <h4 class="detail-box-title">Duplicate Candidate</h4>
+                                        <p class="detail-box-desc" style="font-weight: 700; color: #fb923c;">${escapeHtml(bug.duplicate_candidate)}</p>
+                                    </div>
+                                    <div class="detail-box" style="border-left-color: #fb923c;">
+                                        <h4 class="detail-box-title">Similarity</h4>
+                                        <p class="detail-box-desc" style="font-weight: 700; color: #fb923c;">${bug.similarity_score}%</p>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            
+                                <div class="detail-section-grid">
+                                    <div class="detail-box">
+                                        <h4 class="detail-box-title">AI Root Cause Prediction</h4>
+                                        <p class="detail-box-desc">${escapeHtml(bug.root_cause_prediction)}</p>
+                                    </div>
+                                    <div class="detail-box">
+                                        <h4 class="detail-box-title">AI Suggested Fix</h4>
+                                        <p class="detail-box-desc code-fix-style">${escapeHtml(bug.suggested_fix)}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="detail-section-grid" style="margin-top: 1rem;">
+                                    <div class="detail-box">
+                                        <h4 class="detail-box-title">Audit Log &amp; Missing Fields</h4>
+                                        ${bug.clarification_message ? `
+                                            <p style="color: #f87171; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                                ⚠️ Missing Information: ${bug.missing_information.join(', ')}
+                                            </p>
+                                            <p class="clarification-box-text">${escapeHtml(bug.clarification_message)}</p>
+                                        ` : `
+                                            <p class="text-complete" style="font-size: 0.9rem;">✓ This bug report is complete. All key diagnostic details are present.</p>
+                                        `}
+                                    </div>
+                                    <div class="detail-box resolution-box" id="res-panel-${bug.id}" style="display: ${bug.status === 'Fixed' ? 'block' : 'none'};">
+                                        <h4 class="detail-box-title" style="color: #34d399; border-bottom-color: rgba(16, 185, 129, 0.25);">Resolution Report</h4>
+                                        <div class="resolution-data-grid">
+                                            <div><strong>Date Fixed:</strong> <span id="res-date-${bug.id}">${bug.date_fixed}</span></div>
+                                            <div><strong>Fix Applied:</strong> <span id="res-applied-${bug.id}">${bug.suggested_fix_applied}</span></div>
+                                            <div style="grid-column: span 2; margin-top: 0.25rem;">
+                                                <strong>Resolution Summary:</strong> <span id="res-summary-${bug.id}">${escapeHtml(bug.resolution_summary)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return { primaryRow, expRow };
+            }
+
+            function appendSingleBugRow(bug) {
+                const { primaryRow, expRow } = getBugRowHtml(bug);
+                
+                // Append directly to table body
+                const tempDiv = document.createElement('tbody');
+                tempDiv.innerHTML = primaryRow + expRow;
+                
+                // Move elements to tableBody
+                while (tempDiv.firstChild) {
+                    tableBody.appendChild(tempDiv.firstChild);
+                }
+            }
+
+            // Render Table function
+            function renderResultsTable(bugs) {
+                tableBody.innerHTML = '';
+                
+                if (bugs.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--color-text-muted);">No records found in analysis.</td></tr>`;
+                    return;
+                }
+
+                bugs.forEach(bug => {
+                    appendSingleBugRow(bug);
+                });
+            }
+
+            // Toggle drawer listener using event delegation
+            tableBody.addEventListener('click', (e) => {
+                if (e.target.classList.contains('btn-toggle-exp')) {
+                    const bugId = e.target.dataset.id;
+                    const expRow = document.getElementById(`exp-${bugId}`);
+                    if (expRow) {
+                        const isOpen = expRow.dataset.open === 'true';
+                        if (isOpen) {
+                            expRow.style.display = 'none';
+                            expRow.dataset.open = 'false';
+                            e.target.textContent = 'View';
+                            e.target.classList.remove('active');
+                        } else {
+                            expRow.style.display = '';
+                            expRow.dataset.open = 'true';
+                            e.target.textContent = 'Hide';
+                            e.target.classList.add('active');
+                        }
+                    }
+                }
+            });
+
+            // Display Toast notification
+            function showToast(message, type = 'success') {
+                const toast = document.getElementById('toast-el');
+                const toastIcon = document.getElementById('toast-icon');
+                const toastMsg = document.getElementById('toast-message');
+
+                toast.className = 'toast';
+                toast.classList.add(`toast-${type}`);
+                
+                toastIcon.textContent = type === 'success' ? '✓' : '⚠';
+                toastMsg.textContent = message;
+
+                toast.style.display = 'flex';
+                toast.offsetHeight;
+                toast.classList.add('show');
+
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        toast.style.display = 'none';
+                    }, 300);
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>

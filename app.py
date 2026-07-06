@@ -1,10 +1,6 @@
 from openpyxl import descriptors
 from openpyxl.utils import indexed_list
 from numpy._core.defchararray import title
-from openpyxl.utils import indexed_list
-from openpyxl.utils import indexed_list
-from openpyxl.utils import indexed_list
-from openpyxl.utils import indexed_list
 import traceback
 import os
 import json
@@ -14,6 +10,8 @@ import requests
 import pandas as pd
 from flask import Flask, render_template, request, jsonify, session, Response
 from sentence_transformers import SentenceTransformer, util
+from database import init_db, get_db_connection
+from ai_service import analyze_bug
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,14 +22,27 @@ app.secret_key = 'bugxtract_ai_secret_key_for_development'
 UPLOAD_FOLDER = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'uploads').replace('\\', '/')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Ensure the upload folder exists
+# Ensure the upload folder and database exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+init_db()
 
 # Helper to check allowed extensions
 ALLOWED_EXTENSIONS = {'csv'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def row_to_bug_dict(row):
+    bug = dict(row)
+    # Map database column names to frontend dictionary keys
+    bug['id'] = bug.pop('bug_id')
+    bug['confidence_score'] = bug.pop('confidence')
+    bug['root_cause_prediction'] = bug.pop('root_cause')
+    if bug.get('missing_information'):
+        bug['missing_information'] = [x.strip() for x in bug['missing_information'].split(',') if x.strip()]
+    else:
+        bug['missing_information'] = []
+    return bug
 
 # Load sentence-transformers model globally for duplicate detection
 logger.info("Initializing SentenceTransformer model (all-MiniLM-L6-v2)...")
@@ -42,310 +53,66 @@ except Exception as e:
     logger.error(f"Failed to load SentenceTransformer model: {str(e)}")
     similarity_model = None
 
-# Ollama Endpoint Configuration
-OLLAMA_API_URL = "http://127.0.0.1:11434/api/chat"
-OLLAMA_MODEL = "qwen2.5:3b"
-
-def get_metadata_json_path():
-    return os.path.join(app.config['UPLOAD_FOLDER'], 'triage_metadata.json').replace('\\', '/')
-
-def query_ollama_triage(title, description):
-    """
-    Sends the bug report to local Ollama running qwen2.5:3b to extract triage data.
-    """
-    prompt = f"""You are a software engineering bug triage AI agent.
-1. Classify severity: Choose exactly one of "Low", "Medium", "High", "Critical".
-
-SEVERITY DECISION RULES (MANDATORY)
-
-Apply these rules BEFORE any other reasoning.
-
-====================================================
-CRITICAL
-====================================================
-
-IF the bug mentions:
-- unauthorized access
-- admin page access without authentication
-- privilege escalation
-- authentication bypass
-- security vulnerability exposing sensitive data
-- access control failure
-- duplicate payment
-- charged twice
-- charged multiple times
-- system outage
-- complete data loss
-
-Examples:
-- User accesses admin dashboard without login
-- User views another customer's account
-- Payment processed twice
-- Customer charged multiple times
-- Authentication bypass vulnerability
-- Entire application unavailable
-- Database deleted or corrupted
-
-THEN severity MUST be "Critical".
-
-====================================================
-HIGH
-====================================================
-
-IF the bug mentions:
-- application crash
-- service unavailable
-- API returning 500 errors
-- checkout process completely blocked
-- file upload completely fails
-- dashboard takes more than 30 seconds to load
-- severe performance degradation
-- core functionality completely broken with no workaround
-
-Examples:
-- Application crashes after login
-- Checkout page crashes during payment
-- Users cannot upload files
-- Dashboard takes 45 seconds to load
-- API returns Internal Server Error
-- Core workflow completely blocked
-
-THEN severity MUST be "High".
-
-====================================================
-MEDIUM
-====================================================
-
-IF the bug mentions:
-- SQL exception
-- database timeout
-- PDF export corrupted
-- export issue
-- reporting issue
-- password reset email not received
-- user profile image not updating
-- search functionality not working correctly
-- notification email failure
-- validation error
-- feature partially working
-- workaround exists
-- report generation issue
-- upload/download issue affecting only one feature
-
-Examples:
-- SQL Exception on Login
-- Database timeout in a module
-- PDF Export Corrupted
-- Password Reset Email Not Received
-- User Profile Image Not Updating
-- Search results not loading correctly
-- Notification emails not sent
-- Reports generated incorrectly
-- Feature works intermittently
-
-THEN severity MUST be "Medium".
-
-====================================================
-LOW
-====================================================
-
-IF the bug mentions:
-- cosmetic issue
-- alignment issue
-- typo
-- spelling mistake
-- color issue
-- styling issue
-- minor UI issue
-- non-critical warning message
-
-Examples:
-- Button misaligned
-- Wrong font size
-- Typo in page title
-- Incorrect icon color
-- Spacing issue between fields
-- Minor visual inconsistency
-
-THEN severity MUST be "Low".
-
-Do not choose a lower severity if a higher severity rule matches.
-
-Examples:
-
-BUG: Payment processed twice after checkout
-Severity: Critical
-
-BUG: Unauthorized access to admin page
-Severity: Critical
-
-BUG: Application crashes after login attempts
-Severity: High
-
-BUG: Dashboard takes 45 seconds to load
-Severity: High
-
-BUG: PDF export corrupted
-Severity: Medium
-
-BUG: Typo in footer links
-Severity: Low
-
-Analyze the following bug report:
-Title: {title}
-Description: {description}
-
-Perform the following tasks:
-1. Classify severity: Choose exactly one of "Low", "Medium", "High", "Critical".
-   - You MUST classify as "Critical" if there is:
-     * Unauthorized access to an admin page or restricted directory (e.g., accessing admin page controls without auth)
-     * Duplicate payment processing or duplicate charging (e.g., charged twice)
-     * System outage or complete data loss
-   - You MUST classify as "High" if there is:
-     * Application crash
-     * Login failure
-     * Performance issues above 30 seconds (e.g., taking 45 seconds to load)
-   - You MUST classify as "Medium" if:
-     * Feature partially working, workaround exists
-   - You MUST classify as "Low" if:
-     * Cosmetic, text mistakes, minor UI/styling issues
-
-2. Classify area/component: Select exactly one of: Auth, Billing, Reporting, UI, API, Database, Security, Performance, General.
-   Guidelines:
-   - Login, password, authentication -> Auth
-   - Payment, billing, invoice -> Billing
-   - PDF, export, reports -> Reporting
-   - Admin access, permissions, authorization, unauthorized access -> Security
-   - Slow loading, timeout, latency -> Performance
-
-3. Generate root cause prediction: Predict the most likely technical cause in one clear sentence.
-4. Generate suggested fix: Generate a likely fix or resolution recommendation in 1-2 sentences. Keep it concise.
-5. Auditing: Check if the bug report description contains:
-   a) Steps to Reproduce
-   b) Error Message
-   c) Expected Behavior
-6. Generate clarification message: If any of the above three items are missing, write a polite, professional message requesting the missing details. If none are missing, leave this empty.
-7. Confidence Score: Estimate your analysis confidence level as an integer from 0 to 100.
-8. Severity Reasoning: Explain in one brief sentence why the specific severity was assigned.
-
-You must respond ONLY with a JSON object matching this schema (do not write any conversational text, markdown formatting, or explanation):
-{{
-  "severity": "Critical" (MUST be assigned for security bugs, unauthorized access, privilege escalation, and duplicate payments) | "High" (for crashes, login failures, performance over 30 seconds) | "Medium" | "Low",
-  "area": "Auth" | "Billing" | "Reporting" | "UI" | "API" | "Database" | "Security" | "Performance" | "General",
-  "root_cause_prediction": "One sentence prediction of the technical root cause.",
-  "suggested_fix": "Concise 1-2 sentence recommendation on how to fix this issue.",
-  "missing_steps_to_reproduce": true | false,
-  "missing_error_message": true | false,
-  "missing_expected_behavior": true | false,
-  "clarification_message": "Polite clarification message if items are missing, otherwise empty string.",
-  "confidence_score": 85,
-  "severity_reasoning": "Reasoning explanation text for the assigned severity level."
-}}
-"""
-    payload = {
-        "model": OLLAMA_MODEL,
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        "format": "json",
-        "stream": False
-    }
+def audit_description(description):
+    desc_lower = description.lower()
+    # Programmatically determine if description has these fields
+    missing_steps = not any(kw in desc_lower for kw in ["step", "reproduce", "repro", "how to"])
+    missing_error = not any(kw in desc_lower for kw in ["error", "exception", "fail", "message", "crash", "bug", "traceback"])
+    missing_expected = not any(kw in desc_lower for kw in ["expected", "should", "instead", "actual", "desired"])
     
-    try:
-        print(f"\n[DEBUG] Sending request to Ollama. Timeout: 60s.")
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
-        print(f"[DEBUG] Ollama Response Status Code: {response.status_code}")
-        print(f"[DEBUG] Ollama Response text: {response.text}")
+    missing_fields = []
+    if missing_steps:
+        missing_fields.append("Steps to Reproduce")
+    if missing_error:
+        missing_fields.append("Error Message")
+    if missing_expected:
+        missing_fields.append("Expected Behavior")
         
-        if response.status_code == 200:
-            result_json = response.json()
-            message_content = result_json.get('message', {}).get('content', '')
-            print(f"[DEBUG] Extracted Message Content:\n{message_content}")
-            
-            # Sanitization and JSON extraction
-            content_str = message_content.strip()
-            
-            # Find the outer JSON boundaries to handle model conversational prefix/postscript
-            first_brace = content_str.find('{')
-            last_brace = content_str.rfind('}')
-            if first_brace != -1 and last_brace != -1:
-                content_str = content_str[first_brace:last_brace+1]
-                print(f"[DEBUG] Extracted JSON block:\n{content_str}")
-            
-            try:
-                parsed_data = json.loads(content_str)
-            except json.JSONDecodeError as jde:
-                print(f"[ERROR] json.loads() failed to decode JSON content: {str(jde)}")
-                import traceback
-                traceback.print_exc()
-                raise jde
-                
-            # Normalize confidence score
-            if 'confidence_score' in parsed_data:
-                try:
-                    parsed_data['confidence_score'] = int(parsed_data['confidence_score'])
-                except ValueError:
-                    parsed_data['confidence_score'] = 80
-            else:
-                parsed_data['confidence_score'] = 80
-                
-            if 'severity_reasoning' not in parsed_data:
-                parsed_data['severity_reasoning'] = f"Severity evaluated as {parsed_data.get('severity', 'Medium')} based on the technical impact described in the bug report."
-            return parsed_data
-        else:
-            raise Exception(f"Ollama API returned status code {response.status_code}")
-            
-    except Exception as e:
-        logger.exception("Error during query_ollama_triage")
+    if missing_fields:
+        clarification = "Hello, thank you for submitting this report. To help us triage this faster, could you please provide the missing details: " + ", ".join(missing_fields) + "?"
+    else:
+        clarification = ""
         
-        # Default triage values if Ollama is unresponsive or returns invalid JSON
-        return {
-            "severity": "Medium",
-            "area": "General",
-            "root_cause_prediction": "Unable to connect to Ollama to generate root cause prediction.",
-            "suggested_fix": "Please check the Ollama service status.",
-            "missing_steps_to_reproduce": False,
-            "missing_error_message": False,
-            "missing_expected_behavior": False,
-            "clarification_message": "",
-            "confidence_score": 0,
-            "severity_reasoning": "Ollama service was unavailable to evaluate severity reasoning."
-        }
+    return missing_fields, clarification
 
-
-def get_triaged_json_path():
-    return os.path.join(app.config['UPLOAD_FOLDER'], 'triaged_bugs.json').replace('\\', '/')
 
 def calculate_stats(results):
     total = len(results)
+    critical = sum(1 for b in results if b.get('severity', '').lower() == 'critical')
+    high_priority = sum(1 for b in results if b.get('severity', '').lower() == 'high' or b.get('priority', '').lower() == 'p1')
     duplicates = sum(1 for b in results if b.get('duplicate_status') != "Original")
-    high_priority = sum(1 for b in results if b.get('severity', '').lower() in ['high', 'critical'])
-    avg_health = round(sum(b.get('health_score', 100) for b in results) / total, 1) if total > 0 else 100.0
+    open_bugs = sum(1 for b in results if b.get('status', '').lower() == 'open')
+    resolved_bugs = sum(1 for b in results if b.get('status', '').lower() == 'fixed')
     
-    # Load analysis time metrics
+    # Load analysis time metrics from SQLite database
     total_time = "0.0s"
     last_run = "N/A"
     try:
-        meta_path = get_metadata_json_path()
-        if os.path.exists(meta_path):
-            with open(meta_path, 'r') as f:
-                meta = json.load(f)
-                total_time = meta.get('total_analysis_time', '0.0s')
-                last_run = meta.get('last_analysis_run', 'N/A')
-    except Exception:
-        pass
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM metadata WHERE key = 'total_analysis_time'")
+        row = cursor.fetchone()
+        if row:
+            total_time = row[0]
+        cursor.execute("SELECT value FROM metadata WHERE key = 'last_analysis_run'")
+        row = cursor.fetchone()
+        if row:
+            last_run = row[0]
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to read metadata stats: {str(e)}")
         
     return {
         'total': total,
-        'duplicates': duplicates,
+        'critical': critical,
         'high_priority': high_priority,
-        'avg_health': f"{avg_health}%",
+        'duplicates': duplicates,
+        'open': open_bugs,
+        'resolved': resolved_bugs,
         'total_analysis_time': total_time,
         'last_analysis_run': last_run
     }
+
 
 @app.route('/')
 def index():
@@ -368,6 +135,31 @@ def upload_file():
             df = pd.read_csv(file_path)
             row_count = len(df)
             columns = list(df.columns)
+            
+            # Map columns case-insensitively
+            col_mapping = {}
+            for col in df.columns:
+                col_cleaned = col.strip().lower()
+                if col_cleaned in ['bug id', 'bug_id', 'id']:
+                    col_mapping['id'] = col
+                elif col_cleaned in ['title', 'summary', 'name']:
+                    col_mapping['title'] = col
+                elif col_cleaned in ['description', 'desc', 'body', 'details']:
+                    col_mapping['description'] = col
+                elif col_cleaned in ['source team', 'source_team', 'sourceteam']:
+                    col_mapping['source_team'] = col
+
+            required = ['id', 'title', 'description', 'source_team']
+            missing_headers = [r.replace('_', ' ').title() for r in required if r not in col_mapping]
+            if missing_headers:
+                return jsonify({'error': f'Validation Error: CSV is missing required column(s): {", ".join(missing_headers)}'}), 400
+
+            # Validate missing values for Source Team in each row
+            source_col = col_mapping['source_team']
+            for idx, row in df.iterrows():
+                val = str(row.get(source_col, '')).strip()
+                if not val or val == 'nan':
+                    return jsonify({'error': f'Validation Error: Row {idx + 1} has a missing value for "Source Team"'}), 400
             
             # Save file path and name to session
             session['uploaded_file_path'] = file_path
@@ -407,18 +199,25 @@ def analyze_bugs():
                     col_mapping['title'] = col
                 elif col_cleaned in ['description', 'desc', 'body', 'details']:
                     col_mapping['description'] = col
+                elif col_cleaned in ['source team', 'source_team', 'sourceteam']:
+                    col_mapping['source_team'] = col
                     
-            # Default mappings if not found
-            id_col = col_mapping.get('id', df.columns[0])
-            title_col = col_mapping.get('title', df.columns[1] if len(df.columns) > 1 else df.columns[0])
-            desc_col = col_mapping.get('description', df.columns[2] if len(df.columns) > 2 else title_col)
+            # Check mappings
+            id_col = col_mapping.get('id')
+            title_col = col_mapping.get('title')
+            desc_col = col_mapping.get('description')
+            source_col = col_mapping.get('source_team')
+            
+            if not id_col or not title_col or not desc_col or not source_col:
+                raise ValueError("CSV is missing required column(s). Required: Bug ID, Title, Description, Source Team")
             
             bugs = []
             for idx, row in df.iterrows():
                 bugs.append({
                     'id': str(row.get(id_col, f'BUG-{100+idx}')),
                     'title': str(row.get(title_col, 'Untitled Bug')),
-                    'description': str(row.get(desc_col, ''))
+                    'description': str(row.get(desc_col, '')),
+                    'source_team': str(row.get(source_col, 'QA')).strip()
                 })
                 
             total_bugs = len(bugs)
@@ -479,28 +278,46 @@ def analyze_bugs():
                 dup_status = duplicate_statuses[idx]
                 is_duplicate = dup_status != "Original"
                 
-                # Query Ollama for every bug report
-                ai_data = query_ollama_triage(title, desc)
-                logger.info(f"Ollama response received for {bug_id}")
-                print(f"Ollama response received for {bug_id}")
+                row_source_team = bug['source_team']
+                allowed_source_teams = [
+                    "QA Team", "Testing Team", "IT Support Team", "Developer Team",
+                    "DevOps Team", "Security Team", "Infrastructure Team",
+                    "Data Engineering Team", "Compliance Team"
+                ]
                 
-                severity = ai_data.get('severity', 'Medium')
-                area = ai_data.get('area', 'General')
-                root_cause = ai_data.get('root_cause_prediction', '')
-                suggested_fix = ai_data.get('suggested_fix', 'Review code diagnostics.')
-                confidence_score = ai_data.get('confidence_score', 80)
-                severity_reasoning = ai_data.get('severity_reasoning', '')
-                
-                # Audit missing information
-                missing_info_list = []
-                if ai_data.get('missing_steps_to_reproduce', False):
-                    missing_info_list.append("Steps to Reproduce")
-                if ai_data.get('missing_error_message', False):
-                    missing_info_list.append("Error Message")
-                if ai_data.get('missing_expected_behavior', False):
-                    missing_info_list.append("Expected Behavior")
+                if row_source_team not in allowed_source_teams:
+                    logger.warning(f"Invalid Source Team detected for {bug_id}: {row_source_team}")
+                    severity = "Unknown"
+                    priority = "Unknown"
+                    area = "Unknown"
+                    recommended_team = "Unknown"
+                    root_cause = f"Invalid Source Team value: '{row_source_team}'"
+                    suggested_fix = "Please correct the Source Team value in the CSV report and re-upload. Allowed teams: QA Team, Testing Team, IT Support Team, Developer Team, DevOps Team, Security Team, Infrastructure Team, Data Engineering Team, Compliance Team."
+                    confidence_score = 0
+                    model_used = "Unavailable"
+                    router_status = "ALL_MODELS_FAILED"
+                    classification_status = "INVALID_SOURCE_TEAM"
+                else:
+                    # Query AI Router for every bug report
+                    ai_data = analyze_bug(title, desc, row_source_team)
+                    logger.info(f"AI Router response received for {bug_id}")
+                    print(f"AI Router response received for {bug_id}")
                     
-                clarification = ai_data.get('clarification_message', '')
+                    row_source_team = ai_data.get('source_team', row_source_team)
+                    severity = ai_data.get('severity', 'Medium')
+                    priority = ai_data.get('priority', 'P2')
+                    area = ai_data.get('area', 'General')
+                    recommended_team = ai_data.get('recommended_team', 'Developer')
+                    root_cause = ai_data.get('root_cause', '')
+                    suggested_fix = ai_data.get('suggested_fix', 'Review code diagnostics.')
+                    confidence_score = ai_data.get('confidence', 80)
+                    model_used = ai_data.get('model_used', 'Gemini')
+                    router_status = ai_data.get('router_status', 'PRIMARY_SUCCESS')
+                    classification_status = ai_data.get('classification_status', 'SUCCESS')
+                
+                # Audit missing information programmatically
+                missing_info_list, clarification = audit_description(desc)
+                severity_reasoning = f"Severity evaluated as {severity} by {model_used} agent based on system impact."
                 
                 # Calculate Health Score
                 health_score = 100
@@ -510,20 +327,23 @@ def analyze_bugs():
                 if severity.lower() == 'critical':
                     health_score -= 20
                 health_score = max(0, min(100, health_score))
-
+ 
                 # If this bug is a duplicate, inherit severity from original bug
                 if dup_status != "Original":
                     for existing_bug in triaged_results:
                         if existing_bug["id"] == duplicate_candidates[idx]:
                             severity = existing_bug["severity"]
                             break
-
+ 
                 triaged_bug = {
                     'id': bug_id,
                     'title': title,
                     'description': desc,
+                    'source_team': row_source_team,
                     'severity': severity,
+                    'priority': priority,
                     'area': area,
+                    'recommended_team': recommended_team,
                     'duplicate_status': dup_status,
                     'duplicate_candidate': duplicate_candidates[idx],
                     'similarity_score': similarity_scores[idx],
@@ -537,8 +357,12 @@ def analyze_bugs():
                     'status': 'Open',
                     'date_fixed': '',
                     'suggested_fix_applied': '',
-                    'resolution_summary': ''
+                    'resolution_summary': '',
+                    'model_used': model_used,
+                    'router_status': router_status,
+                    'classification_status': classification_status
                 }
+
 
                 triaged_results.append(triaged_bug)
                 # Yield intermediate result
@@ -554,19 +378,63 @@ def analyze_bugs():
             print(f"Total analysis duration: {elapsed_str}")
             last_run_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Save metadata
+            # Save metadata to SQLite
             try:
-                with open(get_metadata_json_path(), 'w') as f:
-                    json.dump({
-                        'total_analysis_time': elapsed_str,
-                        'last_analysis_run': last_run_timestamp
-                    }, f, indent=2)
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('total_analysis_time', ?)", (elapsed_str,))
+                cursor.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('last_analysis_run', ?)", (last_run_timestamp,))
+                conn.commit()
+                conn.close()
             except Exception as e:
-                logger.error(f"Failed to write metadata: {str(e)}")
+                logger.error(f"Failed to write metadata to SQLite: {str(e)}")
                 
-            # Write results to triaged_bugs.json
-            with open(get_triaged_json_path(), 'w') as f:
-                json.dump(triaged_results, f, indent=2)
+            # Write results to SQLite database
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM bugs")
+                for b in triaged_results:
+                    missing_info_str = ",".join(b.get('missing_information', []))
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO bugs (
+                            bug_id, title, description, source_team, severity, priority, area,
+                            recommended_team, root_cause, suggested_fix, confidence, duplicate_status,
+                            similarity_score, duplicate_candidate, health_score, missing_information,
+                            clarification_message, severity_reasoning, status, date_fixed,
+                            suggested_fix_applied, resolution_summary, model_used, router_status, classification_status
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        b.get('id'),
+                        b.get('title'),
+                        b.get('description'),
+                        b.get('source_team', ''),
+                        b.get('severity'),
+                        b.get('priority', ''),
+                        b.get('area'),
+                        b.get('recommended_team', ''),
+                        b.get('root_cause_prediction'),
+                        b.get('suggested_fix'),
+                        b.get('confidence_score', 80),
+                        b.get('duplicate_status'),
+                        b.get('similarity_score', 0),
+                        b.get('duplicate_candidate'),
+                        b.get('health_score', 100),
+                        missing_info_str,
+                        b.get('clarification_message', ''),
+                        b.get('severity_reasoning', ''),
+                        b.get('status', 'Open'),
+                        b.get('date_fixed', ''),
+                        b.get('suggested_fix_applied', ''),
+                        b.get('resolution_summary', ''),
+                        b.get('model_used', 'Gemini'),
+                        b.get('router_status', ''),
+                        b.get('classification_status', '')
+                    ))
+                conn.commit()
+                conn.close()
+            except Exception as dbe:
+                logger.error(f"Failed to write results to SQLite: {str(dbe)}")
                 
             # Compile Stats
             stats = calculate_stats(triaged_results)
@@ -582,23 +450,14 @@ def analyze_bugs():
 
 @app.route('/triage_data', methods=['GET'])
 def get_triage_data():
-    json_path = get_triaged_json_path()
-    if not os.path.exists(json_path):
-        return jsonify({
-            'success': False,
-            'results': [],
-            'stats': {
-                'total': 0,
-                'duplicates': 0,
-                'high_priority': 0,
-                'avg_health': '100.0%',
-                'total_analysis_time': '0.0s',
-                'last_analysis_run': 'N/A'
-            }
-        })
     try:
-        with open(json_path, 'r') as f:
-            results = json.load(f)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM bugs ORDER BY rowid")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        results = [row_to_bug_dict(row) for row in rows]
         stats = calculate_stats(results)
         return jsonify({
             'success': True,
@@ -606,6 +465,7 @@ def get_triage_data():
             'stats': stats
         })
     except Exception as e:
+        logger.error(f"Failed to fetch triage data: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/update_status', methods=['POST'])
@@ -620,39 +480,39 @@ def update_status():
     if not bug_id or not new_status:
         return jsonify({'error': 'Missing bug ID or status parameter'}), 400
         
-    json_path = get_triaged_json_path()
-    if not os.path.exists(json_path):
-        return jsonify({'error': 'No triage data found. Please run analysis first.'}), 400
-        
     try:
-        with open(json_path, 'r') as f:
-            results = json.load(f)
-            
-        bug_found = False
-        for bug in results:
-            if bug['id'] == bug_id:
-                bug_found = True
-                bug['status'] = new_status
-                if new_status == 'Fixed':
-                    # Populate resolution info
-                    now = datetime.datetime.now()
-                    bug['date_fixed'] = now.strftime('%Y-%m-%d %H:%M')
-                    bug['suggested_fix_applied'] = 'Yes'
-                    bug['resolution_summary'] = 'Applied the suggested code patch to resolve the technical root cause.'
-                else:
-                    # Clear resolution info if status is rolled back
-                    bug['date_fixed'] = ''
-                    bug['suggested_fix_applied'] = ''
-                    bug['resolution_summary'] = ''
-                break
-                
-        if not bug_found:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if bug exists
+        cursor.execute("SELECT bug_id FROM bugs WHERE bug_id = ?", (bug_id,))
+        if not cursor.fetchone():
+            conn.close()
             return jsonify({'error': f'Bug with ID {bug_id} not found.'}), 404
             
-        # Save back to file
-        with open(json_path, 'w') as f:
-            json.dump(results, f, indent=2)
+        if new_status == 'Fixed':
+            now = datetime.datetime.now()
+            date_fixed = now.strftime('%Y-%m-%d %H:%M')
+            fix_applied = 'Yes'
+            res_summary = 'Applied the suggested code patch to resolve the technical root cause.'
+        else:
+            date_fixed = ''
+            fix_applied = ''
+            res_summary = ''
             
+        cursor.execute("""
+            UPDATE bugs
+            SET status = ?, date_fixed = ?, suggested_fix_applied = ?, resolution_summary = ?
+            WHERE bug_id = ?
+        """, (new_status, date_fixed, fix_applied, res_summary, bug_id))
+        conn.commit()
+        
+        # Fetch updated results
+        cursor.execute("SELECT * FROM bugs ORDER BY rowid")
+        rows = cursor.fetchall()
+        results = [row_to_bug_dict(row) for row in rows]
+        conn.close()
+        
         # Recalculate Stats
         stats = calculate_stats(results)
         
@@ -671,13 +531,17 @@ def export_results():
     """
     Exports the triaged bugs list to a CSV download.
     """
-    json_path = get_triaged_json_path()
-    if not os.path.exists(json_path):
-        return "No triage data found. Please run analysis first.", 400
-        
     try:
-        with open(json_path, 'r') as f:
-            results = json.load(f)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM bugs ORDER BY rowid")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        results = [row_to_bug_dict(row) for row in rows]
+        
+        if not results:
+            return "No triage data found. Please run analysis first.", 400
             
         # Build CSV file manually or with Pandas
         export_data = []
@@ -690,14 +554,19 @@ def export_results():
                 'Title': bug.get('title'),
                 'Description': bug.get('description'),
                 'Severity': bug.get('severity'),
+                'Priority': bug.get('priority'),
                 'Area': bug.get('area'),
+                'Source Team': bug.get('source_team'),
+                'Recommended Team': bug.get('recommended_team'),
+                'Root Cause': bug.get('root_cause_prediction'),
+                'Suggested Fix': bug.get('suggested_fix'),
+                'Confidence': f"{bug.get('confidence_score', 80)}%",
+                'Model Used': bug.get('model_used'),
+                'Router Status': bug.get('router_status'),
                 'Duplicate Status': bug.get('duplicate_status'),
                 'Health Score': bug.get('health_score'),
                 'Missing Information': missing_info_str,
                 'Clarification Message': bug.get('clarification_message'),
-                'Root Cause Prediction': bug.get('root_cause_prediction'),
-                'Suggested Fix': bug.get('suggested_fix'),
-                'Confidence Score': f"{bug.get('confidence_score', 80)}%",
                 'AI Reasoning': bug.get('severity_reasoning', ''),
                 'Status': bug.get('status'),
                 'Date Fixed': bug.get('date_fixed'),

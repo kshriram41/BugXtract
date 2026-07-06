@@ -1,11 +1,10 @@
-Bug ID,Title,Description
-BUG-001,SQL Exception on Login,"Steps to reproduce: Open login page, enter credentials, click login. Expected behavior: User logs in successfully. Error: DB timeout at AuthController.java:42"
-BUG-002,Checkout Button Unresponsive,"Steps to reproduce: Add product to cart and click checkout. Expected behavior: Payment page should open. Actual behavior: Nothing happens when clicking checkout."
-BUG-003,PDF Export Corrupted,"Steps to reproduce: Generate monthly report and export as PDF. Expected behavior: Valid PDF should download. Actual behavior: Downloaded PDF cannot be opened."
-BUG-004,Application Crash After Multiple Failed Logins,"Steps to reproduce: Enter incorrect password 10 times continuously. Expected behavior: Error message and account lockout. Actual behavior: Application crashes unexpectedly."
-BUG-005,Duplicate Login Crash Report,"Steps to reproduce: Enter wrong password repeatedly during login attempts. Expected behavior: User receives warning messages. Actual behavior: Login page crashes after several failed attempts."
-BUG-006,User Profile Image Not Updating,"Steps to reproduce: Upload a new profile picture and save changes. Expected behavior: Updated image should be displayed. Actual behavior: Old image continues to appear after refresh."
-BUG-007,Payment Processed Twice,"Steps to reproduce: Double-click the Pay Now button during checkout. Expected behavior: Single payment transaction. Actual behavior: Customer account charged twice."
-BUG-008,Password Reset Email Not Received,"Steps to reproduce: Click Forgot Password and submit registered email. Expected behavior: Reset email should arrive within a few minutes. Actual behavior: No email received after 30 minutes."
-BUG-009,Dashboard Loads Extremely Slowly,"Steps to reproduce: Login and navigate to dashboard containing more than 500 records. Expected behavior: Dashboard loads within 5 seconds. Actual behavior: Dashboard takes over 45 seconds to load."
-BUG-010,Unauthorized Access to Admin Page,"Steps to reproduce: Modify browser URL from user dashboard to /admin. Expected behavior: Access denied message. Actual behavior: User can access admin controls without authorization."
+Bug ID,Title,Description,Source Team
+BUG-001,Corporate SSO Authentication Failure,Employees across multiple business units are unable to authenticate through Azure Active Directory SSO after the latest identity provider configuration update.,QA TEAM 
+BUG-002,SAP Order Synchronization Failure,Customer orders created in SAP are not being synchronized to the internal order management platform after the middleware upgrade.,QA Team
+BUG-003,API Response Schema Mismatch,Regression testing identified a mismatch between documented and actual API response schemas.,Testing Team
+BUG-004,Database Replication Lag,PostgreSQL replica is experiencing a 45-minute delay causing stale reporting data.,Developer Team
+BUG-005,Kubernetes Worker Node Failure,Two production worker nodes entered NotReady state causing workload disruption.,DevOps Team
+BUG-006,Role Based Access Control Bypass,Finance users can access payroll administration screens through direct URL manipulation.,Security Team
+BUG-007,Storage Cluster Degradation,Distributed storage cluster reports multiple unhealthy nodes affecting application performance.,Infrastructure Team
+BUG-008,ETL Pipeline Failure,Nightly ETL jobs are failing to load transactional data into the enterprise data warehouse.,Data Engineering Team
+BUG-009,Audit Log Retention Violation,Application audit logs are deleted after 30 days instead of the mandated 180-day retention period.,Compliance Team

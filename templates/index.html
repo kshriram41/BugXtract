@@ -6,6 +6,8 @@
     <title>BugXtract - AI Powered Bug Report Triage Agent</title>
     <!-- Modern Dark Theme Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -23,17 +25,15 @@
                 </div>
             </div>
             <div class="header-meta">
-                <span class="badge-version">v3.0.0-PRO</span>
+                <span class="badge-version" id="stat-last-run">Last Run: N/A</span>
+                <span class="badge-version" id="stat-time" style="background: rgba(99, 102, 241, 0.1); border-color: rgba(99, 102, 241, 0.25); color: #cbd5e1;">Time: 0.0s</span>
                 <span class="badge-version" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #ffffff; border: none; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem;">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:middle;">
                         <polygon points="12 2 2 7 12 12 22 7 12 2"/>
                         <polyline points="2 17 12 22 22 17"/>
                         <polyline points="2 12 12 17 22 12"/>
                     </svg>
-                    100% Ollama Powered
-                </span>
-                <span class="badge-version" style="background: linear-gradient(135deg, #10b981 0%, #047857 100%); color: #ffffff; border: none; font-weight: 700;">
-                    Powered by qwen2.5:3b
+                    AI Triage Router
                 </span>
                 <div class="status-indicator">
                     <div class="status-dot"></div>
@@ -43,42 +43,48 @@
         </header>
 
         <!-- Stats Section (Dashboard counters) -->
-        <section class="stats-grid">
-            <div class="glass-card stat-card">
+        <section class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
                 <div class="stat-info">
                     <span class="stat-label">Total Bugs</span>
-                    <span class="stat-value" id="stat-total">0</span>
+                    <span class="stat-value" id="stat-total" style="font-size: 1.85rem;">0</span>
                 </div>
-                <div class="stat-icon">📊</div>
+                <div class="stat-icon" style="font-size: 1.5rem;">📊</div>
             </div>
-            <div class="glass-card stat-card">
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
+                <div class="stat-info">
+                    <span class="stat-label">Critical Bugs</span>
+                    <span class="stat-value" id="stat-critical" style="font-size: 1.85rem; color: #ef4444;">0</span>
+                </div>
+                <div class="stat-icon" style="font-size: 1.5rem;">🔥</div>
+            </div>
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
+                <div class="stat-info">
+                    <span class="stat-label">High Priority</span>
+                    <span class="stat-value" id="stat-high-priority" style="font-size: 1.85rem; color: #fb923c;">0</span>
+                </div>
+                <div class="stat-icon" style="font-size: 1.5rem;">⚠️</div>
+            </div>
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
                 <div class="stat-info">
                     <span class="stat-label">Duplicate Bugs</span>
-                    <span class="stat-value" id="stat-duplicates">0</span>
+                    <span class="stat-value" id="stat-duplicates" style="font-size: 1.85rem; color: #a855f7;">0</span>
                 </div>
-                <div class="stat-icon">👥</div>
+                <div class="stat-icon" style="font-size: 1.5rem;">👥</div>
             </div>
-            <div class="glass-card stat-card">
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
                 <div class="stat-info">
-                    <span class="stat-label">High / Critical Bugs</span>
-                    <span class="stat-value" id="stat-high">0</span>
+                    <span class="stat-label">Open Bugs</span>
+                    <span class="stat-value" id="stat-open" style="font-size: 1.85rem; color: #60a5fa;">0</span>
                 </div>
-                <div class="stat-icon">⚠️</div>
+                <div class="stat-icon" style="font-size: 1.5rem;">🔓</div>
             </div>
-            <div class="glass-card stat-card">
+            <div class="glass-card stat-card" style="padding: 1.25rem;">
                 <div class="stat-info">
-                    <span class="stat-label">Average Health Score</span>
-                    <span class="stat-value" id="stat-health">100.0%</span>
+                    <span class="stat-label">Resolved Bugs</span>
+                    <span class="stat-value" id="stat-resolved" style="font-size: 1.85rem; color: #34d399;">0</span>
                 </div>
-                <div class="stat-icon">❤️</div>
-            </div>
-            <div class="glass-card stat-card">
-                <div class="stat-info">
-                    <span class="stat-label">Total Analysis Time</span>
-                    <span class="stat-value" id="stat-time">0.0s</span>
-                    <span class="stat-label" id="stat-last-run" style="font-size: 0.65rem; color: var(--color-text-muted); margin-top: 4px;">Last Run: N/A</span>
-                </div>
-                <div class="stat-icon">⏱️</div>
+                <div class="stat-icon" style="font-size: 1.5rem;">✅</div>
             </div>
         </section>
 
@@ -99,7 +105,13 @@
                     </svg>
                 </div>
                 <h3 class="upload-title">Drag &amp; drop bug report CSV</h3>
-                <p class="upload-desc">Required headers: <code>Bug ID</code>, <code>Title</code>, <code>Description</code>. (Case and space insensitive).</p>
+                <p class="upload-desc">Required headers: <code>Bug ID</code>, <code>Title</code>, <code>Description</code>, <code>Source Team</code>. (Case and space insensitive).</p>
+                <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--color-text-secondary); background: rgba(25, 30, 50, 0.5); border: 1px dashed rgba(255, 255, 255, 0.1); padding: 0.5rem 0.75rem; border-radius: 6px; font-family: monospace; text-align: left; display: inline-block; max-width: 100%;">
+                    <strong>Sample CSV Layout:</strong><br>
+                    Bug ID,Title,Description,Source Team<br>
+                    BUG-001,SSO Failure,Cannot authenticate via AAD SSO,IT Support Team<br>
+                    BUG-002,SAP Sync Error,Orders not synchronizing,QA Team
+                </div>
                 
                 <!-- File Selected State Preview -->
                 <div class="file-preview" id="file-preview-el">
@@ -117,17 +129,45 @@
                 <div class="control-header">
                     <span class="control-title">AI Triage Execution Panel</span>
                     <p class="control-description">
-                        Starts the AI pipeline. Uses local <code>qwen2.5:3b</code> model for severity, area classification, missing info audits, and suggested fixes, and <code>all-MiniLM-L6-v2</code> for duplicate detection.
+                        Starts the AI Router. Processes bugs with Gemini as primary, falling back to Groq (`llama-3.3-70b-versatile`) if required.
                     </p>
                 </div>
-                <div class="control-actions" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="control-actions" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto;">
                     <button type="button" class="btn-primary" id="btn-analyze" disabled>
                         <span>Analyze Bugs</span>
                         <div class="spinner" id="analyze-spinner"></div>
                     </button>
                     <p class="upload-desc" style="font-size: 0.75rem; text-align: center;">
-                        Upload <code>data/sample_bugs.csv</code> to run the triage test.
+                        Upload a mixed-team CSV to run the triage test.
                     </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section id="analytics-container" style="display: none; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 0.5rem; width: 100%;">
+            <div class="glass-card chart-card" style="padding: 1.25rem; min-height: 230px;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Bugs by Source Team</h3>
+                <div class="chart-wrapper" style="position: relative; height: 170px; width: 100%;">
+                    <canvas id="chart-source-team"></canvas>
+                </div>
+            </div>
+            <div class="glass-card chart-card" style="padding: 1.25rem; min-height: 230px;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Bugs by Recommended Team</h3>
+                <div class="chart-wrapper" style="position: relative; height: 170px; width: 100%;">
+                    <canvas id="chart-recommended-team"></canvas>
+                </div>
+            </div>
+            <div class="glass-card chart-card" style="padding: 1.25rem; min-height: 230px;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Severity Distribution</h3>
+                <div class="chart-wrapper" style="position: relative; height: 170px; width: 100%;">
+                    <canvas id="chart-severity"></canvas>
+                </div>
+            </div>
+            <div class="glass-card chart-card" style="padding: 1.25rem; min-height: 230px;">
+                <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Analysis by Model</h3>
+                <div class="chart-wrapper" style="position: relative; height: 170px; width: 100%;">
+                    <canvas id="chart-model"></canvas>
                 </div>
             </div>
         </section>
@@ -154,21 +194,77 @@
                     Triage Assessment Results 
                     <span class="results-count-badge" id="results-count">0 bugs</span>
                 </h2>
-                <!-- Search & Export Actions -->
-                <div style="display: flex; gap: 1rem; align-items: center; width: 100%; max-width: 500px; justify-content: flex-end;">
-                    <div class="search-container">
-                        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <input type="text" class="search-input" id="search-input" placeholder="Filter by ID, Title, Area..." disabled>
-                    </div>
-                    <a href="/export" class="btn-export" id="btn-export" title="Export current results to CSV">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; display: inline-block; vertical-align: middle;">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-                        </svg>
-                        <span>Export CSV</span>
-                    </a>
+                <a href="/export" class="btn-export" id="btn-export" title="Export current results to CSV">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; display: inline-block; vertical-align: middle;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    <span>Export CSV</span>
+                </a>
+            </div>
+
+            <!-- Filters Panel -->
+            <div class="filters-panel" id="filters-container" style="display: none; flex-wrap: wrap; gap: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem; width: 100%;">
+                <div class="filter-group" style="flex: 2 1 240px; position: relative;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Text Search</label>
+                    <input type="text" id="filter-search" class="search-input" style="padding-left: 1rem; width: 100%;" placeholder="Search title, description, cause...">
+                </div>
+                <div class="filter-group" style="flex: 1 1 120px;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Severity</label>
+                    <select id="filter-severity" class="status-select" style="width: 100%; height: 38px; padding: 0.5rem; background: rgba(25, 30, 50, 0.9); border: 1px solid var(--border-color); color: white; border-radius: var(--radius-sm);">
+                        <option value="All">All Severities</option>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 1 1 120px;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Priority</label>
+                    <select id="filter-priority" class="status-select" style="width: 100%; height: 38px; padding: 0.5rem; background: rgba(25, 30, 50, 0.9); border: 1px solid var(--border-color); color: white; border-radius: var(--radius-sm);">
+                        <option value="All">All Priorities</option>
+                        <option value="P0">P0</option>
+                        <option value="P1">P1</option>
+                        <option value="P2">P2</option>
+                        <option value="P3">P3</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 1 1 150px;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Source Team</label>
+                    <select id="filter-source-team" class="status-select" style="width: 100%; height: 38px; padding: 0.5rem; background: rgba(25, 30, 50, 0.9); border: 1px solid var(--border-color); color: white; border-radius: var(--radius-sm);">
+                        <option value="All">All Source Teams</option>
+                        <option value="QA Team">QA Team</option>
+                        <option value="Testing Team">Testing Team</option>
+                        <option value="IT Support Team">IT Support Team</option>
+                        <option value="Developer Team">Developer Team</option>
+                        <option value="DevOps Team">DevOps Team</option>
+                        <option value="Security Team">Security Team</option>
+                        <option value="Infrastructure Team">Infrastructure Team</option>
+                        <option value="Data Engineering Team">Data Engineering Team</option>
+                        <option value="Compliance Team">Compliance Team</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 1 1 150px;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Recommended Team</label>
+                    <select id="filter-recommended-team" class="status-select" style="width: 100%; height: 38px; padding: 0.5rem; background: rgba(25, 30, 50, 0.9); border: 1px solid var(--border-color); color: white; border-radius: var(--radius-sm);">
+                        <option value="All">All Rec Teams</option>
+                        <option value="Backend Team">Backend Team</option>
+                        <option value="Frontend Team">Frontend Team</option>
+                        <option value="Database Team">Database Team</option>
+                        <option value="Infrastructure Team">Infrastructure Team</option>
+                        <option value="Network Team">Network Team</option>
+                        <option value="Security Team">Security Team</option>
+                        <option value="DevOps Team">DevOps Team</option>
+                        <option value="QA Team">QA Team</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="flex: 1 1 120px;">
+                    <label style="display: block; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase;">Model Used</label>
+                    <select id="filter-model" class="status-select" style="width: 100%; height: 38px; padding: 0.5rem; background: rgba(25, 30, 50, 0.9); border: 1px solid var(--border-color); color: white; border-radius: var(--radius-sm);">
+                        <option value="All">All Models</option>
+                        <option value="Gemini">Gemini</option>
+                        <option value="Groq">Groq</option>
+                        <option value="Unavailable">Unavailable</option>
+                    </select>
                 </div>
             </div>
 
@@ -196,7 +292,10 @@
                             <th>Bug ID</th>
                             <th>Title</th>
                             <th>Severity</th>
+                            <th>Priority</th>
                             <th>Area</th>
+                            <th>Source Team</th>
+                            <th>Recommended Team</th>
                             <th>Duplicate Status</th>
                             <th>Health</th>
                             <th>Status</th>
@@ -235,14 +334,15 @@
             const skeletonLoader = document.getElementById('skeleton-loader');
             const tableWrapper = document.getElementById('table-wrapper-el');
             const tableBody = document.getElementById('table-body');
-            const searchInput = document.getElementById('search-input');
             const resultsCount = document.getElementById('results-count');
             
             // Dashboard counters
             const statTotal = document.getElementById('stat-total');
+            const statCritical = document.getElementById('stat-critical');
+            const statHighPriority = document.getElementById('stat-high-priority');
             const statDuplicates = document.getElementById('stat-duplicates');
-            const statHigh = document.getElementById('stat-high');
-            const statHealth = document.getElementById('stat-health');
+            const statOpen = document.getElementById('stat-open');
+            const statResolved = document.getElementById('stat-resolved');
             const statTime = document.getElementById('stat-time');
             const statLastRun = document.getElementById('stat-last-run');
 
@@ -254,6 +354,12 @@
             const progressCurrentTitle = document.getElementById('progress-current-title');
             
             let loadedBugs = [];
+            
+            // Chart.js instances
+            let chartSourceTeam = null;
+            let chartRecommendedTeam = null;
+            let chartSeverity = null;
+            let chartModel = null;
 
             // Disable export initially
             btnExport.classList.add('disabled');
@@ -269,9 +375,12 @@
                         
                         emptyState.style.display = 'none';
                         tableWrapper.style.display = 'block';
-                        searchInput.removeAttribute('disabled');
+                        document.getElementById('analytics-container').style.display = 'grid';
+                        document.getElementById('filters-container').style.display = 'flex';
+                        setFiltersDisabled(false);
                         btnExport.classList.remove('disabled');
                         resultsCount.textContent = `${data.results.length} bugs`;
+                        updateCharts(data.results);
                     }
                 })
                 .catch(err => {
@@ -312,29 +421,85 @@
 
             btnAnalyze.addEventListener('click', performAnalysis);
 
-            // Live Table Filter
-            searchInput.addEventListener('keyup', () => {
-                const query = searchInput.value.toLowerCase().trim();
-                const rows = tableBody.querySelectorAll('tr:not(.explanation-row)');
-                
-                rows.forEach(row => {
-                    const rowId = row.dataset.id;
-                    const text = row.innerText.toLowerCase();
-                    const expRow = document.getElementById(`exp-${rowId}`);
-                    
-                    if (text.includes(query)) {
-                        row.style.display = '';
-                        if (expRow && expRow.dataset.open === 'true') {
-                            expRow.style.display = '';
-                        }
-                    } else {
-                        row.style.display = 'none';
-                        if (expRow) {
-                            expRow.style.display = 'none';
+            // Set filter inputs disabled/enabled
+            function setFiltersDisabled(disabled) {
+                const inputs = [
+                    document.getElementById('filter-search'),
+                    document.getElementById('filter-severity'),
+                    document.getElementById('filter-priority'),
+                    document.getElementById('filter-source-team'),
+                    document.getElementById('filter-recommended-team'),
+                    document.getElementById('filter-model')
+                ];
+                inputs.forEach(el => {
+                    if (el) {
+                        if (disabled) {
+                            el.setAttribute('disabled', 'true');
+                        } else {
+                            el.removeAttribute('disabled');
                         }
                     }
                 });
-            });
+            }
+
+            // Reset filters to defaults
+            function resetFilters() {
+                document.getElementById('filter-search').value = '';
+                document.getElementById('filter-severity').value = 'All';
+                document.getElementById('filter-priority').value = 'All';
+                document.getElementById('filter-source-team').value = 'All';
+                document.getElementById('filter-recommended-team').value = 'All';
+                document.getElementById('filter-model').value = 'All';
+            }
+
+            // Filter table rows dynamically
+            function filterTable() {
+                const query = document.getElementById('filter-search').value.toLowerCase().trim();
+                const severity = document.getElementById('filter-severity').value;
+                const priority = document.getElementById('filter-priority').value;
+                const sourceTeam = document.getElementById('filter-source-team').value;
+                const recTeam = document.getElementById('filter-recommended-team').value;
+                const model = document.getElementById('filter-model').value;
+
+                let visibleCount = 0;
+
+                loadedBugs.forEach(bug => {
+                    const titleMatch = bug.title ? bug.title.toLowerCase().includes(query) : false;
+                    const descMatch = bug.description ? bug.description.toLowerCase().includes(query) : false;
+                    const rootCauseMatch = bug.root_cause_prediction ? bug.root_cause_prediction.toLowerCase().includes(query) : false;
+                    const textMatch = query === "" || titleMatch || descMatch || rootCauseMatch;
+
+                    const severityMatch = severity === "All" || bug.severity === severity;
+                    const priorityMatch = priority === "All" || bug.priority === priority;
+                    const sourceTeamMatch = sourceTeam === "All" || bug.source_team === sourceTeam;
+                    const recTeamMatch = recTeam === "All" || bug.recommended_team === recTeam;
+                    const modelMatch = model === "All" || bug.model_used === model;
+
+                    const row = document.querySelector(`tr[data-id="${bug.id}"]`);
+                    const expRow = document.getElementById(`exp-${bug.id}`);
+
+                    if (textMatch && severityMatch && priorityMatch && sourceTeamMatch && recTeamMatch && modelMatch) {
+                        if (row) row.style.display = '';
+                        if (expRow && expRow.dataset.open === 'true') {
+                            expRow.style.display = '';
+                        }
+                        visibleCount++;
+                    } else {
+                        if (row) row.style.display = 'none';
+                        if (expRow) expRow.style.display = 'none';
+                    }
+                });
+
+                resultsCount.textContent = `${visibleCount} of ${loadedBugs.length} bugs displayed`;
+            }
+
+            // Bind filter change/input events
+            document.getElementById('filter-search').addEventListener('input', filterTable);
+            document.getElementById('filter-severity').addEventListener('change', filterTable);
+            document.getElementById('filter-priority').addEventListener('change', filterTable);
+            document.getElementById('filter-source-team').addEventListener('change', filterTable);
+            document.getElementById('filter-recommended-team').addEventListener('change', filterTable);
+            document.getElementById('filter-model').addEventListener('change', filterTable);
 
             // Handle file selection
             function handleFileSelect() {
@@ -390,9 +555,9 @@
                 
                 emptyState.style.display = 'none';
                 tableWrapper.style.display = 'none';
-                skeletonLoader.style.display = 'none'; // Replaced by live progress + row insertion
-                searchInput.setAttribute('disabled', 'true');
-                searchInput.value = '';
+                skeletonLoader.style.display = 'none';
+                setFiltersDisabled(true);
+                resetFilters();
                 btnExport.classList.add('disabled');
 
                 // Reset progress UI and show it
@@ -422,7 +587,6 @@
 
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split("\n");
-                        // save the last line which might be partial
                         buffer = lines.pop();
 
                         for (const line of lines) {
@@ -459,20 +623,14 @@
                     progressBar.style.width = `${percent}%`;
                     progressCurrentTitle.textContent = event.title;
                 } else if (event.type === 'bug_result') {
-                    // Append this bug immediately to the results
                     loadedBugs.push(event.bug);
-                    // Make sure table wrapper is visible now that we have rows
                     tableWrapper.style.display = 'block';
-                    
-                    // Append row dynamically
                     appendSingleBugRow(event.bug);
                     resultsCount.textContent = `${loadedBugs.length} of ${event.total} bugs analyzed`;
                     
-                    // Scroll to the bottom of the table wrapper
                     const wrapper = document.getElementById('table-wrapper-el');
                     if (wrapper) wrapper.scrollTop = wrapper.scrollHeight;
                 } else if (event.type === 'complete') {
-                    // We are finished!
                     btnAnalyze.removeAttribute('disabled');
                     analyzeSpinner.style.display = 'none';
                     progressContainer.style.display = 'none';
@@ -481,14 +639,16 @@
                     updateDashboardStats(event.stats);
                     resultsCount.textContent = `${event.results.length} bugs`;
                     
-                    // Re-render full table to bind toggles cleanly
                     renderResultsTable(event.results);
                     
                     tableWrapper.style.display = 'block';
-                    searchInput.removeAttribute('disabled');
+                    document.getElementById('analytics-container').style.display = 'grid';
+                    document.getElementById('filters-container').style.display = 'flex';
+                    setFiltersDisabled(false);
                     btnExport.classList.remove('disabled');
                     
                     showToast('AI Triage Assessment Completed!', 'success');
+                    updateCharts(event.results);
                 } else if (event.type === 'error') {
                     btnAnalyze.removeAttribute('disabled');
                     analyzeSpinner.style.display = 'none';
@@ -504,8 +664,7 @@
             window.updateBugStatus = function(selectEl, bugId) {
                 const newStatus = selectEl.value;
                 
-                // Update dropdown class for background colors
-                selectEl.className = 'status-select'; // Reset
+                selectEl.className = 'status-select';
                 selectEl.classList.add(`status-select-${newStatus.toLowerCase().replace(' ', '-')}`);
                 
                 fetch('/update_status', {
@@ -517,15 +676,15 @@
                 .then(data => {
                     if (data.success) {
                         showToast(`BUG ${bugId} status updated to ${newStatus}`, 'success');
+                        loadedBugs = data.results;
                         updateDashboardStats(data.stats);
                         
-                        // Dynamically update the resolution drawer details block if displayed
                         const targetBug = data.results.find(b => b.id === bugId);
                         const resPanel = document.getElementById(`res-panel-${bugId}`);
                         
                         if (resPanel && targetBug) {
                             if (newStatus === 'Fixed') {
-                                resPanel.style.display = 'block';
+                                resPanel.style.display = 'grid';
                                 document.getElementById(`res-date-${bugId}`).textContent = targetBug.date_fixed;
                                 document.getElementById(`res-applied-${bugId}`).textContent = targetBug.suggested_fix_applied;
                                 document.getElementById(`res-summary-${bugId}`).textContent = targetBug.resolution_summary;
@@ -543,18 +702,229 @@
             }
 
             function updateDashboardStats(stats) {
-                statTotal.textContent = stats.total;
-                statDuplicates.textContent = stats.duplicates;
-                statHigh.textContent = stats.high_priority;
-                statHealth.textContent = stats.avg_health;
+                statTotal.textContent = stats.total || 0;
+                statCritical.textContent = stats.critical || 0;
+                statHighPriority.textContent = stats.high_priority || 0;
+                statDuplicates.textContent = stats.duplicates || 0;
+                statOpen.textContent = stats.open || 0;
+                statResolved.textContent = stats.resolved || 0;
                 
-                // New metrics display
                 if (statTime && stats.total_analysis_time) {
                     statTime.textContent = stats.total_analysis_time;
                 }
                 if (statLastRun && stats.last_analysis_run) {
                     statLastRun.textContent = `Last Run: ${stats.last_analysis_run}`;
                 }
+            }
+
+            function updateCharts(bugs) {
+                const sourceTeams = [
+                    "QA Team", "Testing Team", "IT Support Team", "Developer Team",
+                    "DevOps Team", "Security Team", "Infrastructure Team",
+                    "Data Engineering Team", "Compliance Team"
+                ];
+                const sourceCounts = sourceTeams.map(t => bugs.filter(b => b.source_team === t).length);
+
+                const recommendedTeams = [
+                    "Backend Team", "Frontend Team", "Database Team", "Infrastructure Team",
+                    "Network Team", "Security Team", "DevOps Team", "QA Team"
+                ];
+                const recCounts = recommendedTeams.map(t => bugs.filter(b => b.recommended_team === t).length);
+
+                const severities = ["Critical", "High", "Medium", "Low"];
+                const sevCounts = severities.map(t => bugs.filter(b => b.severity === t).length);
+                const totalBugs = bugs.length;
+                const sevPercentages = sevCounts.map(count => totalBugs > 0 ? ((count / totalBugs) * 100).toFixed(1) : 0);
+
+                const models = ["Gemini", "Groq", "Unavailable"];
+                const modelCounts = models.map(t => bugs.filter(b => b.model_used === t).length);
+
+                // Chart 1: Bugs by Source Team
+                const ctxSource = document.getElementById('chart-source-team').getContext('2d');
+                if (chartSourceTeam) chartSourceTeam.destroy();
+                chartSourceTeam = new Chart(ctxSource, {
+                    type: 'bar',
+                    data: {
+                        labels: sourceTeams.map(t => t.replace(' Team', '')),
+                        datasets: [{
+                            label: 'Bugs',
+                            data: sourceCounts,
+                            backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                            borderColor: '#6366f1',
+                            borderWidth: 1.5,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#131b2e',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.08)',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#94a3b8', font: { size: 9 } }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                                ticks: { color: '#94a3b8', stepSize: 1, precision: 0 }
+                            }
+                        }
+                    }
+                });
+
+                // Chart 2: Bugs by Recommended Team
+                const ctxRec = document.getElementById('chart-recommended-team').getContext('2d');
+                if (chartRecommendedTeam) chartRecommendedTeam.destroy();
+                chartRecommendedTeam = new Chart(ctxRec, {
+                    type: 'bar',
+                    data: {
+                        labels: recommendedTeams.map(t => t.replace(' Team', '')),
+                        datasets: [{
+                            label: 'Bugs',
+                            data: recCounts,
+                            backgroundColor: 'rgba(168, 85, 247, 0.7)',
+                            borderColor: '#a855f7',
+                            borderWidth: 1.5,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#131b2e',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.08)',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#94a3b8', font: { size: 9 } }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                                ticks: { color: '#94a3b8', stepSize: 1, precision: 0 }
+                            }
+                        }
+                    }
+                });
+
+                // Chart 3: Severity Distribution
+                const ctxSev = document.getElementById('chart-severity').getContext('2d');
+                if (chartSeverity) chartSeverity.destroy();
+                chartSeverity = new Chart(ctxSev, {
+                    type: 'doughnut',
+                    data: {
+                        labels: severities,
+                        datasets: [{
+                            data: sevCounts,
+                            backgroundColor: [
+                                'rgba(239, 68, 68, 0.7)',
+                                'rgba(249, 115, 22, 0.7)',
+                                'rgba(59, 130, 246, 0.7)',
+                                'rgba(16, 185, 129, 0.7)'
+                            ],
+                            borderColor: [
+                                '#ef4444',
+                                '#fb923c',
+                                '#3b82f6',
+                                '#10b981'
+                            ],
+                            borderWidth: 1.5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10 } }
+                            },
+                            tooltip: {
+                                backgroundColor: '#131b2e',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.08)',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const val = context.parsed || 0;
+                                        const pct = sevPercentages[context.dataIndex];
+                                        return ` ${label}: ${val} (${pct}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+
+                // Chart 4: Analysis by Model
+                const ctxModel = document.getElementById('chart-model').getContext('2d');
+                if (chartModel) chartModel.destroy();
+                chartModel = new Chart(ctxModel, {
+                    type: 'doughnut',
+                    data: {
+                        labels: models,
+                        datasets: [{
+                            data: modelCounts,
+                            backgroundColor: [
+                                'rgba(99, 102, 241, 0.7)',
+                                'rgba(245, 158, 11, 0.7)',
+                                'rgba(100, 116, 139, 0.7)'
+                            ],
+                            borderColor: [
+                                '#6366f1',
+                                '#f59e0b',
+                                '#64748b'
+                            ],
+                            borderWidth: 1.5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: { color: '#94a3b8', boxWidth: 10, font: { size: 10 } }
+                            },
+                            tooltip: {
+                                backgroundColor: '#131b2e',
+                                titleColor: '#f8fafc',
+                                bodyColor: '#cbd5e1',
+                                borderColor: 'rgba(255, 255, 255, 0.08)',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const val = context.parsed || 0;
+                                        const total = modelCounts.reduce((a, b) => a + b, 0);
+                                        const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                        return ` ${label}: ${val} (${pct}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
             }
 
             function escapeHtml(text) {
@@ -607,9 +977,12 @@
                 const primaryRow = `
                     <tr data-id="${bug.id}">
                         <td style="font-weight: 700; color: var(--primary); font-family: monospace;">${bug.id}</td>
-                        <td style="font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(bug.title)}">${escapeHtml(bug.title)}</td>
+                        <td style="font-weight: 600; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(bug.title)}">${escapeHtml(bug.title)}</td>
                         <td><span class="badge ${severityClass}">${bug.severity}</span></td>
+                        <td><span class="badge badge-${bug.priority.toLowerCase()}">${bug.priority}</span></td>
                         <td><span style="font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">${escapeHtml(bug.area)}</span></td>
+                        <td><span style="font-size: 0.8rem; color: var(--color-text-secondary);">${escapeHtml(bug.source_team)}</span></td>
+                        <td><span style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">${escapeHtml(bug.recommended_team)}</span></td>
                         <td>${dupHtml}</td>
                         <td><span class="health-badge ${healthClass}">${bug.health_score}</span></td>
                         <td>
@@ -641,13 +1014,15 @@
                 // Create structured details expansion row
                 const expRow = `
                     <tr id="exp-${bug.id}" class="explanation-row" style="display: none;" data-open="false">
-                        <td colspan="9">
+                        <td colspan="12">
                             <div class="clean-detail-container">
                                 <!-- Top Metadata Info Bar -->
                                 <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; background: rgba(255, 255, 255, 0.02); padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.04);">
                                     <span style="font-size: 0.8rem; color: var(--color-text-secondary);"><strong>Severity:</strong> <span class="badge ${severityClass}" style="vertical-align: middle; margin-left: 0.25rem;">${bug.severity}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Priority:</strong> <span style="font-weight: 700; color: var(--color-text-primary); vertical-align: middle; margin-left: 0.25rem;">${escapeHtml(bug.priority)}</span></span>
                                     <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Area:</strong> <span style="font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.1rem 0.35rem; border-radius: 4px; vertical-align: middle; margin-left: 0.25rem;">${escapeHtml(bug.area)}</span></span>
-                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Duplicate Status:</strong> <span style="vertical-align: middle; margin-left: 0.25rem;">${dupHtml}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Source Team:</strong> <span style="color: var(--color-text-primary); font-weight: 600; vertical-align: middle; margin-left: 0.25rem;">${escapeHtml(bug.source_team)}</span></span>
+                                    <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Recommended Team:</strong> <span style="color: var(--primary); font-weight: 600; vertical-align: middle; margin-left: 0.25rem;">${escapeHtml(bug.recommended_team)}</span></span>
                                     <span style="font-size: 0.8rem; color: var(--color-text-secondary); border-left: 1px solid rgba(255,255,255,0.1); padding-left: 1rem;"><strong>Confidence:</strong> <span style="font-weight: 700; color: ${confColor}; vertical-align: middle; margin-left: 0.25rem;">${bug.confidence_score}%</span></span>
                                 </div>
                             
@@ -676,17 +1051,25 @@
                                 ` : ''}
                             
                                 <div class="detail-section-grid">
-                                    <div class="detail-box">
+                                    <div class="detail-box" style="border-left-color: #6366f1;">
                                         <h4 class="detail-box-title">AI Root Cause Prediction</h4>
                                         <p class="detail-box-desc">${escapeHtml(bug.root_cause_prediction)}</p>
                                     </div>
-                                    <div class="detail-box">
+                                    <div class="detail-box" style="border-left-color: #10b981;">
                                         <h4 class="detail-box-title">AI Suggested Fix</h4>
                                         <p class="detail-box-desc code-fix-style">${escapeHtml(bug.suggested_fix)}</p>
                                     </div>
                                 </div>
                                 
                                 <div class="detail-section-grid" style="margin-top: 1rem;">
+                                    <div class="detail-box" style="border-left-color: var(--primary);">
+                                        <h4 class="detail-box-title">AI Router Diagnostics</h4>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.85rem; color: var(--color-text-secondary);">
+                                            <div><strong>Model Used:</strong> <span style="color: var(--color-text-primary); font-weight: 600;">${escapeHtml(bug.model_used)}</span></div>
+                                            <div><strong>Router Status:</strong> <span style="color: var(--color-text-primary); font-weight: 600;">${escapeHtml(bug.router_status)}</span></div>
+                                            <div style="grid-column: span 2;"><strong>Classification Status:</strong> <span style="color: var(--color-text-primary); font-weight: 600;">${escapeHtml(bug.classification_status)}</span></div>
+                                        </div>
+                                    </div>
                                     <div class="detail-box">
                                         <h4 class="detail-box-title">Audit Log &amp; Missing Fields</h4>
                                         ${bug.clarification_message ? `
@@ -698,7 +1081,10 @@
                                             <p class="text-complete" style="font-size: 0.9rem;">✓ This bug report is complete. All key diagnostic details are present.</p>
                                         `}
                                     </div>
-                                    <div class="detail-box resolution-box" id="res-panel-${bug.id}" style="display: ${bug.status === 'Fixed' ? 'block' : 'none'};">
+                                </div>
+
+                                <div class="detail-section-grid" style="margin-top: 1rem; display: ${bug.status === 'Fixed' ? 'grid' : 'none'};" id="res-panel-${bug.id}">
+                                    <div class="detail-box resolution-box" style="grid-column: span 2;">
                                         <h4 class="detail-box-title" style="color: #34d399; border-bottom-color: rgba(16, 185, 129, 0.25);">Resolution Report</h4>
                                         <div class="resolution-data-grid">
                                             <div><strong>Date Fixed:</strong> <span id="res-date-${bug.id}">${bug.date_fixed}</span></div>
@@ -734,7 +1120,7 @@
                 tableBody.innerHTML = '';
                 
                 if (bugs.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--color-text-muted);">No records found in analysis.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--color-text-muted);">No records found in analysis.</td></tr>`;
                     return;
                 }
 

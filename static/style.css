@@ -633,6 +633,34 @@ tr:hover td {
 }
 .badge-low::before { background-color: var(--badge-low-text); }
 
+.badge-p0 {
+    background: var(--badge-critical-bg);
+    color: var(--badge-critical-text);
+    border: 1px solid var(--badge-critical-border);
+}
+.badge-p0::before { background-color: var(--badge-critical-text); }
+
+.badge-p1 {
+    background: var(--badge-high-bg);
+    color: var(--badge-high-text);
+    border: 1px solid var(--badge-high-border);
+}
+.badge-p1::before { background-color: var(--badge-high-text); }
+
+.badge-p2 {
+    background: var(--badge-medium-bg);
+    color: var(--badge-medium-text);
+    border: 1px solid var(--badge-medium-border);
+}
+.badge-p2::before { background-color: var(--badge-medium-text); }
+
+.badge-p3 {
+    background: var(--badge-low-bg);
+    color: var(--badge-low-text);
+    border: 1px solid var(--badge-low-border);
+}
+.badge-p3::before { background-color: var(--badge-low-text); }
+
 /* Developer/Agent Assigned column */
 .owner-avatar {
     width: 24px;
